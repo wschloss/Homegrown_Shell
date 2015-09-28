@@ -296,6 +296,12 @@ int redirectionScan(vector<string>& tokens) {
   if (redirect == ">" || redirect == ">>") {
     dup2(descriptor, STDOUT_FILENO);
   }
+  else if (redirect == "<") {
+    dup2(descriptor, STDIN_FILENO);
+  }
+
+  // close it
+  close(descriptor);
 
   return descriptor;
 }
@@ -304,7 +310,12 @@ int redirectionScan(vector<string>& tokens) {
 // Executes a line of input by either calling execute_external_command or
 // directly invoking the built-in command.
 int execute_line(vector<string>& tokens, map<string, command>& builtins) {
-  int return_value = 0; // Setup file redirection
+  // Copy incase file redirection occurs
+  int stdoutcopy = dup(STDOUT_FILENO);
+  int stdincopy = dup(STDIN_FILENO);
+
+  int return_value = 0; 
+  // Setup file redirection
   int descriptor = redirectionScan(tokens);
   if (descriptor == -1) return -1; 
 
@@ -317,12 +328,12 @@ int execute_line(vector<string>& tokens, map<string, command>& builtins) {
       return_value = ((*cmd->second)(tokens));
     }
   }
-  // Close any open file descriptor
-  // and replace the stdin/stdout descriptors
-  if (descriptor != -2) {
-    // NOT CLOSING
-    close(descriptor);
-  }
+  // Revert the std in and out
+  dup2(stdoutcopy, STDOUT_FILENO);
+  dup2(stdincopy, STDIN_FILENO);
+  close(stdoutcopy);
+  close(stdincopy);
+
   return return_value;
 }
 
