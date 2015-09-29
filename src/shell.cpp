@@ -250,10 +250,52 @@ vector<string> tokenize(const char* line) {
 }
 
 
-// Searches for a redirection token
-// If found, splits off token and file from vector, sets up the file descriptor
-// appropriately.
-// If not found, returns a -2, or error opening file, returns -1
+// Splits the vector of tokens by pipe characters.
+// Returns of new token vectors without the pipe characters
+// If the location of pipes is not valid, returns an empty structure
+vector< vector<string> > splitByPipes(vector<string> tokens) {
+  // Vector of split portions
+  vector< vector<string> > ret;
+  // search for pipes until all processed
+  while(true) {
+    int pipepos;
+    // Search for a pipe pos
+    for ( pipepos = 0; pipepos < tokens.size(); pipepos++ ) {
+      if (tokens[pipepos] == "|")
+        break;
+    }
+
+    // Check for invalid pipe positions
+    if (pipepos == 0 || pipepos == tokens.size() - 1) {
+      // Clear out to signal an error
+      ret.clear();
+      return ret;
+    } 
+    // if we didn't find another pipe
+    else if (pipepos == tokens.size())
+      break;
+
+    // Position is good, split off the tokens up to the pipe
+    vector<string> command;
+    for ( int i = 0; i < pipepos; i++ ) {
+      command.push_back(tokens[0]);
+      tokens.erase(tokens.begin());
+    }
+    // Erase the pipe char
+    tokens.erase(tokens.begin());
+
+    // Add the split off command
+    ret.push_back(command);
+  } 
+  // add remaining tokens as last command
+  ret.push_back(tokens);
+  return ret;
+}
+
+
+// Searches for a redirection token, if found, splits off token and file from vector
+// Sets up the file descriptors appropriately
+// If no token found, returns a -2, if an error occurs, returns -1
 int redirectionScan(vector<string>& tokens) {
   // Scan from the back end to get the last char
   int i;
@@ -265,7 +307,7 @@ int redirectionScan(vector<string>& tokens) {
   if (i == -1) return -2;
   // Ensure the position of the redirect token makes sense
   if (i == 0 || i != tokens.size() - 2) {
-    cout << "incorrect file redirection\n";
+    cerr << "Invalid file redirection\n";
     return -1;
   } 
 
@@ -279,8 +321,14 @@ int redirectionScan(vector<string>& tokens) {
   int descriptor;
   // Sets file permissions
   mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH;
-  if (redirect == "<")
+  if (redirect == "<") {
+    // Check to make sure not used with a pipe since that doesn't make sense
+    if (splitByPipes(tokens).size() > 1) {
+      cerr << "Invalid combination of pipes and file redirection\n";
+      return -1;
+    }
     descriptor = open(filestring.c_str(), O_RDONLY, mode);
+  }
   else if (redirect == ">")
     descriptor = open(filestring.c_str(), O_WRONLY | O_CREAT | O_TRUNC, mode); 
   else if (redirect == ">>")
@@ -301,8 +349,7 @@ int redirectionScan(vector<string>& tokens) {
   }
 
   // close it
-  close(descriptor);
-
+  close(descriptor); 
   return descriptor;
 }
 
@@ -315,19 +362,38 @@ int execute_line(vector<string>& tokens, map<string, command>& builtins) {
   int stdincopy = dup(STDIN_FILENO);
 
   int return_value = 0; 
-  // Setup file redirection
-  int descriptor = redirectionScan(tokens);
-  if (descriptor == -1) return -1; 
 
   if (tokens.size() != 0) {
-    map<string, command>::iterator cmd = builtins.find(tokens[0]);
+    // Setup file redirection on the last command
+    int descriptor = redirectionScan(tokens);
+    if (descriptor == -1) return -1; 
 
-    if (cmd == builtins.end()) {
-      return_value = execute_external_command(tokens);
-    } else {
-      return_value = ((*cmd->second)(tokens));
+    // Split the line by pipes
+    vector< vector<string> > splitline = splitByPipes(tokens);
+    // Check for any invalid pipes
+    if (splitline.size() == 0) {
+      cerr << "Invalid pipes\n";
+      // TODO: find a better way to do this since it is copied later
+      dup2(stdoutcopy, STDOUT_FILENO);
+      dup2(stdincopy, STDIN_FILENO);
+      close(stdoutcopy);
+      close(stdincopy);
+      return -1;
+    }
+
+
+    // Execute each piece of the split with appropriate file descriptors
+    for (int i = 0; i < splitline.size(); i++) {
+      map<string, command>::iterator cmd = builtins.find(splitline[i][0]);
+
+      if (cmd == builtins.end()) {
+        return_value = execute_external_command(splitline[i]);
+      } else {
+        return_value = ((*cmd->second)(splitline[i]));
+      }
     }
   }
+
   // Revert the std in and out
   dup2(stdoutcopy, STDOUT_FILENO);
   dup2(stdincopy, STDIN_FILENO);
