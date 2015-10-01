@@ -1,6 +1,7 @@
 Walter Schlosser
 CSCI442
-Project 2 - Intermediate 1 (Internal Commands)
+Project 2 - Intermediate 2 (one pipe, file redirection, command completion,
+                                  and external commands)
 
 Files included are:
 
@@ -14,3 +15,4 @@ makefile:
     Compilation instructions for the make utility.
 
 First intermediate: 3.5 hrs
+Second intermediate: 5 hrs
