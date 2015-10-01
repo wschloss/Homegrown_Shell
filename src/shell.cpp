@@ -384,6 +384,62 @@ int redirectionScan(vector<string>& tokens) {
 }
 
 
+// Executes the command to write to a pipe.  Returns the file descriptor for
+// the read end so it can be fed to another command.
+// Returns -1 if there was an error.
+int piped_execution(vector<string>& tokens) {
+  // Declare pipe
+  int the_pipe[2];
+  int cpid;
+
+  // open up the pipe
+  if (pipe(the_pipe) == -1) {
+    perror("pipe");
+    return -1;
+  }
+  
+  // Fork to execute in the child process
+  if ((cpid = fork()) == -1) {
+    perror("fork");
+    // close pipe for good measure
+    close(the_pipe[0]);
+    close(the_pipe[1]);
+    return -1;
+  }
+
+  if (cpid == 0) {
+    close(the_pipe[0]);
+    // replace stdout with the write end of the pipe, execute the command
+    int backupfd = dup(STDOUT_FILENO);
+    dup2(the_pipe[1], STDOUT_FILENO);
+    //execute
+    map<string, command>::iterator cmd = builtins.find(tokens[0]);
+    int return_value;
+    if (cmd == builtins.end()) {
+      return_value = execute_external_command(tokens);
+    } else {
+      return_value = ((*cmd->second)(tokens));
+    }
+
+    // replace stdout
+    dup2(backupfd, STDOUT_FILENO);
+    close(backupfd);
+    close(the_pipe[1]);
+    exit(return_value);
+    cout << "NEVER HERE\n";
+  } else {
+    // parent, wait for child and then return descriptor to the read end so
+    // it can be passed along
+    close(the_pipe[1]);
+    int status;
+    if(wait(&status) == -1)
+      perror("wait");
+
+    return the_pipe[0];
+  }
+}
+
+
 // Executes a line of input by either calling execute_external_command or
 // directly invoking the built-in command.
 int execute_line(vector<string>& tokens, map<string, command>& builtins) {
@@ -411,12 +467,35 @@ int execute_line(vector<string>& tokens, map<string, command>& builtins) {
       return -1;
     }
 
-
     // Execute each piece of the split with appropriate file descriptors
     for (int i = 0; i < splitline.size(); i++) {
       map<string, command>::iterator cmd = builtins.find(splitline[i][0]);
 
-      if (cmd == builtins.end()) {
+      // IMPLEMENTATION OF ONE PIPE
+      if ( splitline.size() == 2 ) {
+        // execute first command in a child process, get the descriptor for
+        // the pipes read end back
+        int readfd = piped_execution(splitline[0]);
+        // check for error
+        if (readfd == -1) return -1;
+        // set stdin to this fd
+        int backupfd = dup(STDIN_FILENO);
+        dup2(readfd, STDIN_FILENO);
+        // now execute the next command
+        if (cmd == builtins.end()) {
+          return_value = execute_external_command(splitline[1]);
+        } else {
+          return_value = ((*cmd->second)(splitline[1]));
+        }
+        // restore std in and close readfd
+        close(readfd);
+        dup2(backupfd, STDIN_FILENO);
+        close(backupfd);
+        return return_value;
+      }
+      // END OF ONE PIPE IMPLEMENTATION
+      
+      else if (cmd == builtins.end()) {
         return_value = execute_external_command(splitline[i]);
       } else {
         return_value = ((*cmd->second)(splitline[i]));
