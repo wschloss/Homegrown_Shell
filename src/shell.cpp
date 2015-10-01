@@ -8,6 +8,7 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <fcntl.h>
+#include <sys/wait.h>
 
 #include "builtins.h"
 
@@ -47,15 +48,13 @@ map<string, string> aliases;
 int execute_external_command(vector<string> tokens) {
   // Get the program name
   string progname = tokens[0];
-  // Erase so we only have args left, then convert args into a char** structure
-  // for the exec call
-  tokens.erase(tokens.begin());
+  // convert args into a char** structure for the exec call
   char** argv = new char*[tokens.size() + 1]; // need a null at the end
   for (int i = 0; i < tokens.size(); i++) {
+    argv[i] = new char[tokens[i].size() + 1];
     strcpy(argv[i], tokens[i].c_str());
   }
-  argv[tokens.size()] = new char('\0');
-  
+  argv[tokens.size()] = NULL;
   // Fork and execute the command in the child
   int cpid;
   if ((cpid = fork()) == -1) {
@@ -76,8 +75,8 @@ int execute_external_command(vector<string> tokens) {
       perror("wait");
       return -1;
     }
+    return status;
   }
-  return 0;
 }
 
 
