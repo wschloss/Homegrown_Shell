@@ -45,7 +45,38 @@ map<string, string> aliases;
 
 // Handles external commands, redirects, and pipes.
 int execute_external_command(vector<string> tokens) {
-  // TODO: YOUR CODE GOES HERE
+  // Get the program name
+  string progname = tokens[0];
+  // Erase so we only have args left, then convert args into a char** structure
+  // for the exec call
+  tokens.erase(tokens.begin());
+  char** argv = new char*[tokens.size() + 1]; // need a null at the end
+  for (int i = 0; i < tokens.size(); i++) {
+    strcpy(argv[i], tokens[i].c_str());
+  }
+  argv[tokens.size()] = new char('\0');
+  
+  // Fork and execute the command in the child
+  int cpid;
+  if ((cpid = fork()) == -1) {
+    perror("fork");
+    return -1;
+  }
+  if (cpid == 0) {
+    //child, call the exec syscall
+    execvp(progname.c_str(), argv);
+    // if we get here, there was an error
+    perror("execve");
+    exit(1);
+    return -1;
+  } else {
+    //parent, wait for the child to finish
+    int status;
+    if (wait(&status) == -1) {
+      perror("wait");
+      return -1;
+    }
+  }
   return 0;
 }
 
