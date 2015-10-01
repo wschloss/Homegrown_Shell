@@ -426,7 +426,6 @@ int piped_execution(vector<string>& tokens) {
     close(backupfd);
     close(the_pipe[1]);
     exit(return_value);
-    cout << "NEVER HERE\n";
   } else {
     // parent, wait for child and then return descriptor to the read end so
     // it can be passed along
@@ -479,7 +478,7 @@ int execute_line(vector<string>& tokens, map<string, command>& builtins) {
         // check for error
         if (readfd == -1) return -1;
         // set stdin to this fd
-        int backupfd = dup(STDIN_FILENO);
+        int backupin = dup(STDIN_FILENO);
         dup2(readfd, STDIN_FILENO);
         // now execute the next command
         if (cmd == builtins.end()) {
@@ -489,9 +488,11 @@ int execute_line(vector<string>& tokens, map<string, command>& builtins) {
         }
         // restore std in and close readfd
         close(readfd);
-        dup2(backupfd, STDIN_FILENO);
-        close(backupfd);
-        return return_value;
+        dup2(backupin, STDIN_FILENO);
+        close(backupin);
+        // set i so execution ends, this is just a hack so the one pipe
+        // test only runs once
+        i = 2;
       }
       // END OF ONE PIPE IMPLEMENTATION
       
