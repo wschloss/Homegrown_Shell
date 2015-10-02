@@ -43,6 +43,9 @@ map<string, string> localvars;
 // Currently assigned aliases
 map<string, string> aliases;
 
+// Current job number to assign to a backgrounded command
+int jobnumber = 0;
+
 
 // Handles external commands, redirects, and pipes.
 int execute_external_command(vector<string> tokens) {
@@ -454,6 +457,7 @@ int execute_line(vector<string>& tokens, map<string, command>& builtins) {
     // Check for any invalid pipes
     if (splitline.size() == 0) {
       cerr << "Invalid pipes\n";
+      return -1;
     }
     // Pipes are good to go
     else {
@@ -583,6 +587,32 @@ void local_variable_assignment(vector<string> tokens) {
 }
 
 
+// Executes command in background, prints the job number and process id
+int background_execute(vector<string>& tokens) {
+  // Fork, execute in child, but do not wait in parent
+  int cpid;
+
+  if ((cpid = fork()) == -1) {
+    perror("fork");
+    return -1;
+  }
+  
+  if (cpid == 0) {
+    // child, execute
+    int status = execute_line(tokens, builtins);
+    // This job is done, decrement count
+    jobnumber--; // will have to pipe to get this to work i think...
+    exit(status);
+  }
+  else {
+    // parent, print out the job and pid
+    jobnumber++;
+    cout << "[" << jobnumber << "] "<< cpid << endl;
+    return 0;
+  }
+}
+
+
 // The main program
 int main() {
   // Populate the map of available built-in functions
@@ -639,18 +669,27 @@ int main() {
       // Substitue command for alias if it exists, also handles !! and !N
       alias_substitution(tokens);
 
-      // Copy incase file redirection occurs
-      int stdoutcopy = dup(STDOUT_FILENO);
-      int stdincopy = dup(STDIN_FILENO);
+      // Check for backgrounded command
+      if (tokens[tokens.size() - 1] == "&") {
+        // erase the token
+        tokens.erase(tokens.begin() + tokens.size() - 1);
+        // execute in background
+        return_value = background_execute(tokens);
+      }
+      else {
+        // Copy incase file redirection occurs
+        int stdoutcopy = dup(STDOUT_FILENO);
+        int stdincopy = dup(STDIN_FILENO);
 
-      // Execute the line
-      return_value = execute_line(tokens, builtins);
+        // Execute the line
+        return_value = execute_line(tokens, builtins);
 
-      // Revert the std in and out
-      dup2(stdoutcopy, STDOUT_FILENO);
-      dup2(stdincopy, STDIN_FILENO);
-      close(stdoutcopy);
-      close(stdincopy);
+        // Revert the std in and out
+        dup2(stdoutcopy, STDOUT_FILENO);
+        dup2(stdincopy, STDIN_FILENO);
+        close(stdoutcopy);
+        close(stdincopy);
+      }
     }
 
     // Free the memory for the input string
