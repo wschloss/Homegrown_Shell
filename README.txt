@@ -1,7 +1,8 @@
 Walter Schlosser
 CSCI442
-Project 2 - Intermediate 2 (one pipe, file redirection, command completion,
-                                  and external commands)
+Project 2 - Final ( infinite pipes, backgrounding commands)
+ 
+--------------------
 
 Files included are:
 
@@ -14,5 +15,15 @@ shell.cpp:
 makefile:
     Compilation instructions for the make utility.
 
+--------------------
+
+Extra Credit Features:
+    The shell supports infinite pipes!
+
+--------------------
+
 First intermediate: 3.5 hrs
 Second intermediate: 5 hrs
+Third intermediate: 2 hrs
+
+TOTAL: 10.5 hrs
