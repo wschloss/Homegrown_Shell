@@ -421,7 +421,7 @@ int piped_execution(vector<string>& tokens) {
       return_value = ((*cmd->second)(tokens));
     }
 
-    // replace stdout
+    // restore stdout
     dup2(backupfd, STDOUT_FILENO);
     close(backupfd);
     close(the_pipe[1]);
@@ -442,10 +442,6 @@ int piped_execution(vector<string>& tokens) {
 // Executes a line of input by either calling execute_external_command or
 // directly invoking the built-in command.
 int execute_line(vector<string>& tokens, map<string, command>& builtins) {
-  // Copy incase file redirection occurs
-  int stdoutcopy = dup(STDOUT_FILENO);
-  int stdincopy = dup(STDIN_FILENO);
-
   int return_value = 0; 
 
   if (tokens.size() != 0) {
@@ -458,57 +454,34 @@ int execute_line(vector<string>& tokens, map<string, command>& builtins) {
     // Check for any invalid pipes
     if (splitline.size() == 0) {
       cerr << "Invalid pipes\n";
-      // TODO: find a better way to do this since it is copied later
-      dup2(stdoutcopy, STDOUT_FILENO);
-      dup2(stdincopy, STDIN_FILENO);
-      close(stdoutcopy);
-      close(stdincopy);
-      return -1;
     }
+    // Pipes are good to go
+    else {
+      // Execute each piece of the split with appropriate file descriptors
 
-    // Execute each piece of the split with appropriate file descriptors
-    for (int i = 0; i < splitline.size(); i++) {
-      map<string, command>::iterator cmd = builtins.find(splitline[i][0]);
-
-      // IMPLEMENTATION OF ONE PIPE
-      if ( splitline.size() == 2 ) {
-        // execute first command in a child process, get the descriptor for
+      // Iterate over all parts of the command except the last
+      for (int i = 0; i < splitline.size() - 1; i++) {
+        // execute command in a child process, get the descriptor for
         // the pipes read end back
-        int readfd = piped_execution(splitline[0]);
+        int readfd = piped_execution(splitline[i]);
         // check for error
         if (readfd == -1) return -1;
         // set stdin to this fd
-        int backupin = dup(STDIN_FILENO);
         dup2(readfd, STDIN_FILENO);
-        // now execute the next command
-        if (cmd == builtins.end()) {
-          return_value = execute_external_command(splitline[1]);
-        } else {
-          return_value = ((*cmd->second)(splitline[1]));
-        }
-        // restore std in and close readfd
         close(readfd);
-        dup2(backupin, STDIN_FILENO);
-        close(backupin);
-        // set i so execution ends, this is just a hack so the one pipe
-        // test only runs once
-        i = 2;
       }
-      // END OF ONE PIPE IMPLEMENTATION
-      
-      else if (cmd == builtins.end()) {
-        return_value = execute_external_command(splitline[i]);
+
+      // The last part doesn't write to a pipe 
+      map<string, command>::iterator cmd = 
+                              builtins.find(splitline[splitline.size() - 1][0]);
+
+      if (cmd == builtins.end()) {
+        return_value = execute_external_command(splitline[splitline.size() - 1]);
       } else {
-        return_value = ((*cmd->second)(splitline[i]));
+        return_value = ((*cmd->second)(splitline[splitline.size() - 1]));
       }
     }
   }
-
-  // Revert the std in and out
-  dup2(stdoutcopy, STDOUT_FILENO);
-  dup2(stdincopy, STDIN_FILENO);
-  close(stdoutcopy);
-  close(stdincopy);
 
   return return_value;
 }
@@ -666,8 +639,18 @@ int main() {
       // Substitue command for alias if it exists, also handles !! and !N
       alias_substitution(tokens);
 
+      // Copy incase file redirection occurs
+      int stdoutcopy = dup(STDOUT_FILENO);
+      int stdincopy = dup(STDIN_FILENO);
+
       // Execute the line
       return_value = execute_line(tokens, builtins);
+
+      // Revert the std in and out
+      dup2(stdoutcopy, STDOUT_FILENO);
+      dup2(stdincopy, STDIN_FILENO);
+      close(stdoutcopy);
+      close(stdincopy);
     }
 
     // Free the memory for the input string
