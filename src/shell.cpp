@@ -12,17 +12,6 @@
 
 #include "builtins.h"
 
-// Potentially useful #includes (either here or in builtins.h):
-//   #include <dirent.h>
-//   #include <errno.h>
-//   #include <fcntl.h>
-//   #include <signal.h>
-//   #include <sys/errno.h>
-//   #include <sys/param.h>
-//   #include <sys/types.h>
-//   #include <sys/wait.h>
-//   #include <unistd.h>
-
 using namespace std;
 
 

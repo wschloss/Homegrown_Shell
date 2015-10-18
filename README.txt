@@ -1,29 +1,20 @@
-Walter Schlosser
-CSCI442
-Project 2 - Final ( infinite pipes, backgrounding commands)
- 
---------------------
+# Homegrown Shell
+* Walter Schlosser *
 
-Files included are:
+## Description:
+Traditional bash-like shell made in C++ for *nix systems.  See the builtins.h
+file for supported built in commands.  The shell also supports:
+* External Commands
+* Piping ( com | com | com )
+* File redirection ( com > file OR com < file OR com >> file )
+* Tab completion using programs in you $PATH
+* Backgrounding ( com & ) (This feature is buggy at the moment)
 
-builtins.h/builtins.cpp:
-    Prototypes and implementations of functions that handle internal commands.
+## Known Bugs:
+Backgrounding is buggy.  Process successfully executes in background, but then
+the main shell interface may print out of order.  Additional buggyness ensues.
 
-shell.cpp:
-    Entry point and main functionality for the shell.
-
-makefile:
-    Compilation instructions for the make utility.
-
---------------------
-
-Extra Credit Features:
-    The shell supports infinite pipes!
-
---------------------
-
-First intermediate: 3.5 hrs
-Second intermediate: 5 hrs
-Third intermediate: 2 hrs
-
-TOTAL: 10.5 hrs
+## Build instructions:
+This sheel depends on the GNU readline library.
+* A makefile is provided, run 'make' next to shell.cpp 
+* The executable is named 'myshell'
