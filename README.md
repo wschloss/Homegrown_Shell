@@ -1,5 +1,5 @@
 # Homegrown Shell
-* Walter Schlosser *
+*Walter Schlosser*
 
 ## Description:
 Traditional bash-like shell made in C++ for *nix systems.  See the builtins.h
